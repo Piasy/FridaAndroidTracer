@@ -1,0 +1,6 @@
+.idea/
+.gradle/
+build/
+bintray.properties
+/src/main/res
+**.js

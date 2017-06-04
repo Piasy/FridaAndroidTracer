@@ -1,0 +1,38 @@
+
+buildscript {
+  repositories {
+    maven {
+      url "https://plugins.gradle.org/m2/"
+    }
+    jcenter()
+  }
+  dependencies {
+    classpath "com.github.jengelman.gradle.plugins:shadow:2.0.0"
+  }
+}
+
+apply plugin: 'java'
+apply plugin: 'application'
+apply plugin: "com.github.johnrengelman.shadow"
+
+mainClassName = 'com.github.piasy.frida_android_tracer.FridaAndroidTracer'
+
+shadowJar {
+  classifier = null
+  configurations = [project.configurations.compile]
+}
+
+sourceCompatibility = 1.8
+
+repositories {
+  mavenCentral()
+  jcenter()
+  flatDir {
+    dirs "$rootProject.projectDir/libs"
+  }
+}
+
+dependencies {
+  compile (name:'android', ext:'jar')
+}
+
