@@ -85,6 +85,8 @@ public class FridaAndroidTracer {
             script.append(hookClass(clazz, SKIP_METHODS, includePrivate, 1));
         }
 
+        script.append(INDENT)
+                .append("send(\"Hook started!\");\n");
         script.append("});\n");
 
         saveScript(outputFileName, script.toString());
