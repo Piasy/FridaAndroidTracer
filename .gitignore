@@ -1,6 +1,6 @@
 .idea/
 .gradle/
 build/
-bintray.properties
+local.properties
 /src/main/res
 **.js

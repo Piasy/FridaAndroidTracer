@@ -8,6 +8,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -49,6 +50,7 @@ public class FridaAndroidTracer {
     String[] classNames = getInputs(argv[0]);
     String outputFileName = argv[1];
     String[] skipMethods = getInputs(argv[2]);
+    boolean includePrivate = argv.length >= 3 && "true".equals(argv[3]);
 
     SKIP_METHODS.addAll(Arrays.asList(skipMethods));
 
@@ -67,7 +69,7 @@ public class FridaAndroidTracer {
         continue;
       }
 
-      script.append(hookClass(clazz, SKIP_METHODS, 1));
+      script.append(hookClass(clazz, SKIP_METHODS, includePrivate, 1));
     }
 
     script.append("});\n");
@@ -76,10 +78,12 @@ public class FridaAndroidTracer {
   }
 
   private static void printUsage() {
-    System.out.println("Usage: java -jar FridaAndroidTracer.jar <class names> <output script path> <skip methods>");
+    System.out.println("Usage: java -jar FridaAndroidTracer.jar <class names> "
+                       + "<output script path> <skip methods> <include private>");
     System.out.println("\t class names:        classes to be hooked, in csv format, or @filename");
     System.out.println("\t output script path: output script path");
     System.out.println("\t skip methods:       methods to be skipped, in csv format, or @filename");
+    System.out.println("\t include private:    optional, \"true\" to include private methods");
   }
 
   private static String[] getInputs(String input) {
@@ -106,7 +110,8 @@ public class FridaAndroidTracer {
     }
   }
 
-  private static String hookClass(Class clazz, Set<String> skipMethods, int indents) {
+  private static String hookClass(Class clazz, Set<String> skipMethods, boolean includePrivate,
+          int indents) {
     StringWriter writer = new StringWriter();
     PrintWriter printer = new PrintWriter(writer);
 
@@ -123,8 +128,12 @@ public class FridaAndroidTracer {
       hookConstructor(printer, clazz, constructor, 1);
     }
 
-    for (Method method : clazz.getMethods()) {
+    for (Method method : getMethods(clazz)) {
       if (skipMethods.contains(method.getName())) {
+        continue;
+      }
+
+      if (Modifier.isPrivate(method.getModifiers()) && !includePrivate) {
         continue;
       }
 
@@ -135,6 +144,18 @@ public class FridaAndroidTracer {
     printer.close();
 
     return writer.toString();
+  }
+
+  private static Method[] getMethods(Class clazz) {
+    Method[] publicMethods = clazz.getMethods();
+    Method[] declaredMethods = clazz.getDeclaredMethods();
+    Set<Method> set = new HashSet<>();
+    set.addAll(Arrays.asList(publicMethods));
+    set.addAll(Arrays.asList(declaredMethods));
+
+    Method[] allMethods = new Method[set.size()];
+    set.toArray(allMethods);
+    return allMethods;
   }
 
   private static void saveScript(String outputFileName, String script) {
