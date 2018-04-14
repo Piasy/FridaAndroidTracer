@@ -33,6 +33,7 @@ repositories {
 }
 
 dependencies {
-  compile (name:'android', ext:'jar')
+  //compile (name:'android', ext:'jar')
+  //compile group: 'org.robolectric', name: 'android-all', version: '8.0.0_r4-robolectric-0'
 }
 

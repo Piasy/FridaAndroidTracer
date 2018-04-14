@@ -18,6 +18,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -29,6 +30,7 @@ public class FridaAndroidTracer {
 
     private static final Map<String, String> ARRAY_NAME_MAP;
     private static final Set<String> SKIP_METHODS;
+    private static final Random RANDOM = new Random(System.currentTimeMillis());
 
     static {
         ARRAY_NAME_MAP = new HashMap<>();
@@ -61,18 +63,17 @@ public class FridaAndroidTracer {
 
         SKIP_METHODS.addAll(Arrays.asList(skipMethods));
 
-        StringBuilder script = new StringBuilder();
-
-        script.append("////////// auto-gen hook script\n\n");
-
-        script.append(printArgs());
-        script.append("Java.perform(function () {\n");
-
         ClassLoader classLoader = loadJars(jarFiles);
         if (classLoader == null) {
             System.out.println("Load jar files fail!");
             System.exit(2);
         }
+
+        StringBuilder script = new StringBuilder();
+
+        script.append("////////// auto-gen hook script\n\n");
+        script.append(printArgs());
+        script.append("Java.perform(function () {\n");
 
         for (String className : classNames) {
             Class clazz = findClass(classLoader, className);
@@ -159,7 +160,8 @@ public class FridaAndroidTracer {
         printer.println();
 
         for (Constructor constructor : clazz.getConstructors()) {
-            hookConstructor(printer, clazz, constructor, 1);
+            hookMethod(printer, clazz, "$init", constructor.getParameters(), clazz.getSimpleName(),
+                    indents);
         }
 
         for (Method method : getMethods(clazz)) {
@@ -171,7 +173,8 @@ public class FridaAndroidTracer {
                 continue;
             }
 
-            hookMethod(printer, clazz, method, 1);
+            hookMethod(printer, clazz, method.getName(), method.getParameters(),
+                    method.getReturnType().getName(), indents);
         }
 
         printer.println();
@@ -212,80 +215,43 @@ public class FridaAndroidTracer {
                + "}\n\n";
     }
 
-    private static void hookConstructor(PrintWriter printer, Class clazz, Constructor constructor,
-            int indents) {
+    private static void hookMethod(PrintWriter printer, Class clazz, String name,
+            Parameter[] params, String returnType, int indents) {
         printIndents(printer, indents);
         printer.println("try {");
 
-        printIndents(printer, indents + 1);
-        printer.print(String.format("%s.$init.overload(", clazz.getSimpleName()));
-
-        StringBuilder params = new StringBuilder();
-        StringBuilder paramsToLog = new StringBuilder();
-        extractParams(printer, constructor.getParameters(), params, paramsToLog);
-        printer.print(String.format(").implementation = function (%s)", params.toString()));
-
-        printer.println(" {");
-
-        if (paramsToLog.length() == 0) {
-            printIndents(printer, indents + 2);
-            printer.append(String.format("send(\"%s.$init\");", clazz.getName()))
-                    .println();
-        } else {
-            printIndents(printer, indents + 2);
-            printer.append(
-                    String.format("send(\"%s.$init: \" + print_args(%s));",
-                            clazz.getName(), paramsToLog.toString()))
-                    .println();
-        }
-
-        printIndents(printer, indents + 2);
-        printer.append(String.format("return this.$init(%s);", params.toString()))
-                .println();
+        StringBuilder formalParams = new StringBuilder();
+        StringBuilder actualParams = new StringBuilder();
+        StringBuilder actualParamsToLog = new StringBuilder();
+        extractParams(params, formalParams, actualParams, actualParamsToLog);
 
         printIndents(printer, indents + 1);
-        printer.println("};");
-
-        printIndents(printer, indents);
-        printer.println("} catch(err) {");
-        printIndents(printer, indents + 1);
-        printer.println("console.log(err.message);");
-        printIndents(printer, indents);
-        printer.println("}");
-
+        String funcName = "func_" + (name.startsWith("$") ? name.substring(1) : name)
+                          + "_" + RANDOM.nextInt(Integer.MAX_VALUE);
+        printer.print(String.format("var %s = %s.%s.overload(%s);", funcName, clazz.getSimpleName(),
+                name, formalParams.toString()));
         printer.println();
-    }
 
-    private static void hookMethod(PrintWriter printer, Class clazz, Method method, int indents) {
-        printIndents(printer, indents);
-        printer.println("try {");
+        boolean hasReturn = !returnType.equals("void");
 
         printIndents(printer, indents + 1);
-        printer.print(String.format("%s.%s.overload(", clazz.getSimpleName(), method.getName()));
-
-        boolean hasReturn = !method.getReturnType().getName().equals("void");
-
-        StringBuilder params = new StringBuilder();
-        StringBuilder paramsToLog = new StringBuilder();
-        extractParams(printer, method.getParameters(), params, paramsToLog);
-        printer.print(String.format(").implementation = function (%s)", params.toString()));
-
-        printer.println(" {");
+        printer.print(String.format("%s.implementation = function (%s) {", funcName,
+                actualParams.toString()));
+        printer.println();
 
         if (hasReturn) {
             printIndents(printer, indents + 2);
-            printer.append("var ret = this.")
-                    .append(method.getName())
-                    .append("(")
-                    .append(params.toString())
+            printer.append("var ret = ")
+                    .append(funcName)
+                    .append(".call(this")
+                    .append(actualParams.length() == 0 ? "" : (", " + actualParams.toString()))
                     .append(");")
                     .println();
         } else {
             printIndents(printer, indents + 2);
-            printer.append("this.")
-                    .append(method.getName())
-                    .append("(")
-                    .append(params.toString())
+            printer.append(funcName)
+                    .append(".call(this")
+                    .append(actualParams.length() == 0 ? "" : (", " + actualParams.toString()))
                     .append(");")
                     .println();
 
@@ -294,17 +260,17 @@ public class FridaAndroidTracer {
                     .println();
         }
 
-        if (paramsToLog.length() == 0) {
+        if (actualParamsToLog.length() == 0) {
             printIndents(printer, indents + 2);
             printer.append(String.format("send(\"%s(\" + this + \").%s: ret=\" + ret);",
-                    clazz.getName(), method.getName()))
+                    clazz.getName(), name))
                     .println();
         } else {
             printIndents(printer, indents + 2);
             printer.append(
                     String.format(
                             "send(\"%s(\" + this + \").%s: \" + print_args(%s) + \"ret=\" + ret);",
-                            clazz.getName(), method.getName(), paramsToLog.toString()))
+                            clazz.getName(), name, actualParamsToLog.toString()))
                     .println();
         }
 
@@ -327,27 +293,16 @@ public class FridaAndroidTracer {
         printer.println();
     }
 
-    private static void extractParams(PrintWriter printer, Parameter[] parameters,
-            StringBuilder params, StringBuilder paramsToLog) {
+    private static void extractParams(Parameter[] parameters, StringBuilder formalParams,
+            StringBuilder actualParams, StringBuilder actualParamsToLog) {
         for (Parameter param : parameters) {
-            String sigFormatter;
-            String paramFormatter;
-            if (params.length() == 0) {
-                sigFormatter = "\"%s\"";
-                paramFormatter = "%s";
-            } else {
-                sigFormatter = ", \"%s\"";
-                paramFormatter = ", %s";
-            }
-            printer.print(String.format(sigFormatter, param.getType().getName()));
-
-            params.append(String.format(paramFormatter, param.getName()));
+            concat(formalParams, "\"" + param.getType().getName() + "\"");
+            concat(actualParams, param.getName());
 
             if (param.getType().getName().startsWith("[")) {
-                paramsToLog.append(asConcat(paramsToLog.length() == 0,
-                        String.format("\"%s\"", arrayTypeName(param.getType().getName()))));
+                concat(actualParamsToLog, "\"" + arrayTypeName(param.getType().getName()) + "\"");
             } else {
-                paramsToLog.append(asConcat(paramsToLog.length() == 0, param.getName()));
+                concat(actualParamsToLog, param.getName());
             }
         }
     }
@@ -365,7 +320,7 @@ public class FridaAndroidTracer {
         return name.substring(1) + "[]";
     }
 
-    private static String asConcat(boolean first, String str) {
-        return first ? str : ", " + str;
+    private static void concat(StringBuilder builder, String str) {
+        builder.append(builder.length() == 0 ? str : ", " + str);
     }
 }
