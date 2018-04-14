@@ -1,14 +1,13 @@
-
 buildscript {
-  repositories {
-    maven {
-      url "https://plugins.gradle.org/m2/"
+    repositories {
+        maven {
+            url "https://plugins.gradle.org/m2/"
+        }
+        jcenter()
     }
-    jcenter()
-  }
-  dependencies {
-    classpath "com.github.jengelman.gradle.plugins:shadow:2.0.0"
-  }
+    dependencies {
+        classpath "com.github.jengelman.gradle.plugins:shadow:2.0.0"
+    }
 }
 
 apply plugin: 'java'
@@ -18,22 +17,25 @@ apply plugin: "com.github.johnrengelman.shadow"
 mainClassName = 'com.github.piasy.frida_android_tracer.FridaAndroidTracer'
 
 shadowJar {
-  classifier = null
-  configurations = [project.configurations.compile]
+    classifier = null
+    configurations = [project.configurations.compile]
 }
 
 sourceCompatibility = 1.8
 
 repositories {
-  mavenCentral()
-  jcenter()
-  flatDir {
-    dirs "$rootProject.projectDir/libs"
-  }
+    mavenCentral()
+    jcenter()
+    flatDir {
+        dirs "$rootProject.projectDir/libs"
+    }
 }
 
 dependencies {
-  //compile (name:'android', ext:'jar')
-  //compile group: 'org.robolectric', name: 'android-all', version: '8.0.0_r4-robolectric-0'
+    // https://mvnrepository.com/artifact/commons-cli/commons-cli
+    compile group: 'commons-cli', name: 'commons-cli', version: '1.4'
+
+    //compile (name:'android', ext:'jar')
+    //compile group: 'org.robolectric', name: 'android-all', version: '8.0.0_r4-robolectric-0'
 }
 

@@ -9,10 +9,11 @@ Grab the prebuilt shadow jar (FridaAndroidTracer.jar) inside the repo, or clone 
 ## Usage
 
 ``` bash
-Usage: java -jar FridaAndroidTracer.jar <jar files> <class names> <output script path> <skip methods> <include private>
-	 jar files:          jar files to be included, in csv format, or @filename
-	 class names:        classes to be hooked, in csv format, or @filename
-	 output script path: output script path
-	 skip methods:       methods to be skipped, in csv format, or @filename
-	 include private:    optional, "true" to include private methods
+usage: java -jar FridaAndroidTracer.jar
+ -a,--expand-array      expand array values
+ -c,--classes <arg>     classes to be hooked
+ -j,--jars <arg>        jar files to be included
+ -o,--output <arg>      output script path
+ -p,--include-private   include private methods
+ -s,--skip <arg>        methods to be skipped
 ```
